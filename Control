@@ -1,0 +1,3 @@
+requires: stdlibs libstdc++ libio-vbus l4virtio drivers-frst
+provides: spi-driver spi-server
+maintainer: jakub.jermar@kernkonzept.com
