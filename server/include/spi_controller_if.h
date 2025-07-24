@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Kernkonzept GmbH.
+ * Copyright (C) 2025 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt philipp.eppelt@kernkonzept.com
  *            Jakub Jermar <jakub.jermar@kernkonzept.com>
  *
@@ -30,6 +30,13 @@ struct Xfer_cfg
  */
 struct Controller_if
 {
+  /* Controller capabilities and features */
+  virtual unsigned cs_num() = 0;
+  virtual bool cpha_lo_supported() = 0;
+  virtual bool cpha_hi_supported() = 0;
+  virtual bool cpol_lo_supported() = 0;
+  virtual bool cpol_hi_supported() = 0;
+
   virtual void start_transfer(Xfer_cfg const &cfg) = 0;
   virtual void finish_transfer() = 0;
 

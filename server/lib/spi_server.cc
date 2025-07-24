@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Kernkonzept GmbH.
+ * Copyright (C) 2025 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt philipp.eppelt@kernkonzept.com
  *            Jakub Jermar <jakub.jermar@kernkonzept.com>
  *
@@ -11,7 +11,7 @@
 #include <l4/sys/cxx/ipc_epiface>
 #include <l4/re/util/object_registry>
 #include <l4/re/util/br_manager>
-//#include <l4/l4virtio/server/virtio-spi-device>
+#include <l4/l4virtio/server/virtio-spi-device>
 
 #include <l4/spi-driver/spi_device_if.h>
 
@@ -178,46 +178,131 @@ Spi_device::op_write_read(Spi_device_ops::Rights,
 }
 
 
-#if 0
 class Spi_virtio_request_handler
 {
 public:
-  Spi_virtio_request_handler(Controller_if *ctrl, l4_uint8_t cs)
-  : _ctrl(ctrl), _cs(cs)
+  Spi_virtio_request_handler(Controller_if *ctrl, l4_uint8_t cs,
+                             l4_uint8_t read_tx_val = 0)
+  : _ctrl(ctrl), _cs(cs), _read_tx_val(read_tx_val)
   {}
 
   ~Spi_virtio_request_handler() = default;
 
-  bool handle_read(l4_uint8_t cs, l4_uint8_t *buf, unsigned len)
-  {
-    if (cs != _cs)
-      return false;
 
-    long err = _ctrl->read(_cs, buf, len);
+  L4virtio::Svr::Spi_transfer_result
+  handle_transfer(L4virtio::Svr::Spi_transfer_head const &head,
+                  l4_uint8_t const *tx_buf, l4_uint8_t *rx_buf, unsigned len)
+  {
+    if (head.chip_select_id != _cs)
+      return L4virtio::Svr::Spi_param_err;
+
+    Xfer_cfg cfg;
+    transfer_head2xfer_cfg(head, cfg);
+    _ctrl->start_transfer(cfg);
+    long err = _ctrl->transfer(cfg, tx_buf, rx_buf, len);
+    _ctrl->finish_transfer();
     if (err)
-      warn().printf("spi-virtio-req::read: %li\n", err);
-    return err == L4_EOK;
+      warn().printf("spi-virtio-req::transfer: %li\n", err);
+
+    return (err == L4_EOK) ? L4virtio::Svr::Spi_trans_ok
+                           : L4virtio::Svr::Spi_trans_err;
   }
 
-  bool handle_write(l4_uint8_t cs, l4_uint8_t const *buf, unsigned len)
+  L4virtio::Svr::Spi_transfer_result
+  handle_write(L4virtio::Svr::Spi_transfer_head const &head,
+               l4_uint8_t const *tx_buf, unsigned len)
   {
-    if (cs != _cs)
-      return false;
+    if (head.chip_select_id != _cs)
+      return L4virtio::Svr::Spi_param_err;
 
-    long err = _ctrl->write(_cs, buf, len);
+    Xfer_cfg cfg;
+    transfer_head2xfer_cfg(head, cfg);
+    _ctrl->start_transfer(cfg);
+    long err = _ctrl->write(cfg, tx_buf, len);
+    _ctrl->finish_transfer();
     if (err)
       warn().printf("spi-virtio-req::write: %li\n", err);
-    return err == L4_EOK;
+
+    return (err == L4_EOK) ? L4virtio::Svr::Spi_trans_ok
+                           : L4virtio::Svr::Spi_trans_err;
+  }
+
+  L4virtio::Svr::Spi_transfer_result
+  handle_read(L4virtio::Svr::Spi_transfer_head const &head, l4_uint8_t *rx_buf,
+              unsigned len)
+  {
+    if (head.chip_select_id != _cs)
+      return L4virtio::Svr::Spi_param_err;
+
+    Xfer_cfg cfg;
+    transfer_head2xfer_cfg(head, cfg);
+    _ctrl->start_transfer(cfg);
+    long err = _ctrl->read(cfg, rx_buf, len);
+    _ctrl->finish_transfer();
+    if (err)
+      warn().printf("spi-virtio-req::read: %li\n", err);
+
+    return (err == L4_EOK) ? L4virtio::Svr::Spi_trans_ok
+                           : L4virtio::Svr::Spi_trans_err;
   }
 
   bool match(l4_uint8_t cs) const { return cs == _cs; }
 
+  unsigned char cs_max_number() const
+  { return (unsigned char) _ctrl->cs_num(); }
+
+  unsigned mode_func_supported() const
+  {
+    enum : unsigned
+    {
+      Cpha_mode_shift = 0,
+      Cpha_mode_lo = 1,
+      Cpha_mode_hi = 2,
+      Cpol_mode_shift = 2,
+      Cpol_mode_lo = 1,
+      Cpol_mode_hi = 2
+    };
+
+    unsigned mode = 0;
+
+    if (_ctrl->cpha_lo_supported())
+      mode |= Cpha_mode_lo << Cpha_mode_shift;
+    if (_ctrl->cpha_hi_supported())
+      mode |= Cpha_mode_hi << Cpha_mode_shift;
+
+    if (_ctrl->cpol_lo_supported())
+      mode |= Cpol_mode_lo << Cpol_mode_shift;
+    if (_ctrl->cpol_hi_supported())
+      mode |= Cpol_mode_hi << Cpol_mode_shift;
+
+    return mode;
+  }
+
 private:
+  void transfer_head2xfer_cfg(L4virtio::Svr::Spi_transfer_head const &head,
+                              Xfer_cfg &cfg)
+  {
+    enum
+    {
+      Mode_cpha = 1,
+      Mode_cpol = 2,
+      Mode_cspol = 4,
+    };
+
+    cfg.cs = head.chip_select_id;
+    cfg.cspol = head.mode & Mode_cspol;
+    cfg.clk = head.freq; // XXX
+    cfg.cpol = head.mode & Mode_cpol;
+    cfg.cpha = head.mode & Mode_cpha;
+    cfg.read_tx_val = _read_tx_val;
+  }
+
   static Dbg warn() { return Dbg(Dbg::Warn, "ReqHdlr"); }
   static Dbg trace() { return Dbg(Dbg::Trace, "ReqHdlr"); }
 
   Controller_if *_ctrl;
   l4_uint8_t _cs;
+  l4_uint8_t _read_tx_val;
 };
 
 class Spi_virtio_device
@@ -230,7 +315,6 @@ public:
   : Virtio_spi(req_hdlr, registry)
   {}
 };
-#endif
 
 class Spi_factory : public L4::Epiface_t<Spi_factory, L4::Factory>
 {
@@ -265,24 +349,18 @@ private:
 
   Controller_if *_ctrl;
   L4Re::Util::Object_registry *_registry;
-#if 0
   std::vector<std::tuple<std::unique_ptr<Spi_virtio_device>,
                          std::unique_ptr<Spi_virtio_request_handler>>>
     _devices_virtio;
-#endif
   std::vector<std::unique_ptr<Spi_device>> _devices_rpc;
 };
 
 bool
 Spi_factory::device_chipselect_free(unsigned cs) const
 {
-  cs &= 0xffU;
-
-#if 0
   for (auto const &[dev, hdlr] : _devices_virtio)
       if (hdlr->match(cs))
         return false;
-#endif
 
   for (auto const &dev : _devices_rpc)
     if (dev->match(cs))
@@ -395,9 +473,9 @@ Spi_factory::op_create(L4::Factory::Rights, L4::Ipc::Cap<void> &res,
     {
     case Type_virtio:
       {
-#if 0
         std::unique_ptr<Spi_virtio_request_handler> rqh =
-          std::make_unique<Spi_virtio_request_handler>(_ctrl, dev_cs);
+          std::make_unique<Spi_virtio_request_handler>(_ctrl, dev_cs,
+                                                       dev_read_tx_val);
         if (!rqh)
           return -L4_EINVAL;
 
@@ -415,37 +493,36 @@ Spi_factory::op_create(L4::Factory::Rights, L4::Ipc::Cap<void> &res,
 
         _devices_virtio.push_back(
           std::make_tuple(std::move(spi_dev), std::move(rqh)));
-#endif
-        return -L4_EINVAL;
         break;
       }
     case Type_rpc:
       {
-      Xfer_cfg cfg = {.cs = (l4_uint8_t)dev_cs,
-                      .cspol = (bool)dev_cspol,
-                      .clk = dev_clk,
-                      .cpol = (bool)dev_cpol,
-                      .cpha = (bool)dev_cpha,
-                      .read_tx_val = (l4_uint8_t)dev_read_tx_val};
+        Xfer_cfg cfg = {.cs = (l4_uint8_t)dev_cs,
+                        .cspol = (bool)dev_cspol,
+                        .clk = dev_clk,
+                        .cpol = (bool)dev_cpol,
+                        .cpha = (bool)dev_cpha,
+                        .read_tx_val = (l4_uint8_t)dev_read_tx_val};
 
-      std::unique_ptr<Spi_device> spi_dev =
-        std::make_unique<Spi_device>(cfg, _ctrl);
+        std::unique_ptr<Spi_device> spi_dev =
+          std::make_unique<Spi_device>(cfg, _ctrl);
 
-      if (!spi_dev)
-        return -L4_EINVAL;
+        if (!spi_dev)
+          return -L4_EINVAL;
 
-      device_ep = _registry->register_obj(spi_dev.get());
-      if (!device_ep)
-        return -L4_EINVAL;
+        device_ep = _registry->register_obj(spi_dev.get());
+        if (!device_ep)
+          return -L4_EINVAL;
 
-      trace().printf("Created device for chip select 0x%x: %p\n", dev_cs,
-                     spi_dev.get());
+        trace().printf("Created device for chip select 0x%x: %p\n", dev_cs,
+                       spi_dev.get());
 
-      _devices_rpc.push_back(std::move(spi_dev));
-      break;
+        _devices_rpc.push_back(std::move(spi_dev));
+        break;
       }
 
-    default: return -L4_ENODEV;
+    default:
+      return -L4_ENODEV;
     }
 
   res = L4::Ipc::make_cap_rw(device_ep);

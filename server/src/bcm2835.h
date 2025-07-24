@@ -77,6 +77,17 @@ public:
 
   void setup(L4Re::Util::Object_registry *registry) override;
 
+  unsigned cs_num() override
+  { return 3; } // Note: cs2 is not exposed on GPIO pins on rpi
+  bool cpha_lo_supported() override
+  { return true; }
+  bool cpha_hi_supported() override
+  { return true; }
+  bool cpol_lo_supported() override
+  { return true; }
+  bool cpol_hi_supported() override
+  { return true; }
+
   void start_transfer(Spi_server::Xfer_cfg const &cfg) override;
   void finish_transfer() override;
 
