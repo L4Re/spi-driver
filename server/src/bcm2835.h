@@ -88,15 +88,11 @@ public:
   bool cpol_hi_supported() override
   { return true; }
 
-  void start_transfer(Spi_server::Xfer_cfg const &cfg) override;
-  void finish_transfer() override;
+  void start_transfer(Spi_server::Xfer_cfg const &cfg, bool force) override;
+  void finish_transfer(Spi_server::Xfer_cfg const &cfg, bool force) override;
 
   long transfer(Spi_server::Xfer_cfg const &cfg, l4_uint8_t const *tx_buf,
                 l4_uint8_t *rx_buf, unsigned len) override;
-  long write(Spi_server::Xfer_cfg const &cfg, l4_uint8_t const *buf,
-             unsigned len) override;
-  long read(Spi_server::Xfer_cfg const &cfg, l4_uint8_t *buf,
-            unsigned len) override;
 
   void handle_irq()
   {
@@ -129,6 +125,8 @@ private:
   L4drivers::Mmio_register_block<32> _regs;
   l4_addr_t _end;
   L4::Cap<L4::Irq> _irq;
+
+  bool _msg_in_progress = false;
 };
 
 void Ctrl_bcm2835::setup(L4Re::Util::Object_registry *registry)
@@ -148,8 +146,11 @@ void Ctrl_bcm2835::setup(L4Re::Util::Object_registry *registry)
   L4Re::chkipc(_irq->unmask(), "Unmask IRQ\n");
 }
 
-void Ctrl_bcm2835::start_transfer(Spi_server::Xfer_cfg const &cfg)
+void Ctrl_bcm2835::start_transfer(Spi_server::Xfer_cfg const &cfg, bool force)
 {
+  if (!force && _msg_in_progress)
+    return;
+
   Clock clk(this);
 
   clk.cdiv() = cfg.clk;
@@ -183,15 +184,19 @@ void Ctrl_bcm2835::start_transfer(Spi_server::Xfer_cfg const &cfg)
   write32(Mmio_regs::Cs,  c.raw);
 }
 
-void Ctrl_bcm2835::finish_transfer()
+void Ctrl_bcm2835::finish_transfer(Spi_server::Xfer_cfg const &cfg, bool force)
 {
   Control c(this);
 
   while (!c.done())
     c.update(this);
 
-  c.ta() = 0;
-  write32(Mmio_regs::Cs, c.raw);
+  if (cfg.last || force)
+    {
+      _msg_in_progress = false;
+      c.ta() = 0;
+      write32(Mmio_regs::Cs, c.raw);
+    }
 }
 
 long
@@ -209,72 +214,19 @@ Ctrl_bcm2835::transfer(Spi_server::Xfer_cfg const &cfg,
       c.update(this);
       while (c.txd() && tx_cnt < len)
         {
-          write32(Mmio_regs::Fifo, (l4_uint32_t) tx_buf[tx_cnt]);
+          if (tx_buf)
+            write32(Mmio_regs::Fifo, (l4_uint32_t) tx_buf[tx_cnt]);
+          else
+            write32(Mmio_regs::Fifo, (l4_uint32_t) cfg.read_tx_val);
           ++tx_cnt;
           c.update(this);
         }
       while (c.rxd() && rx_cnt < len)
         {
-          rx_buf[rx_cnt] = (l4_uint8_t) read32(Mmio_regs::Fifo);
-          ++rx_cnt;
-          c.update(this);
-        }
-    }
-
-  return L4_EOK;
-}
-
-long
-Ctrl_bcm2835::write(Spi_server::Xfer_cfg const &cfg, l4_uint8_t const *buf,
-                    unsigned len)
-{
-  Control c(this);
-
-  unsigned tx_cnt = 0;
-  unsigned rx_cnt = 0;
-
-  while (tx_cnt < len || rx_cnt < len)
-    {
-      c.update(this);
-      while (c.txd() && tx_cnt < len)
-        {
-          write32(Mmio_regs::Fifo, (l4_uint32_t) buf[tx_cnt]);
-          ++tx_cnt;
-          c.update(this);
-        }
-      while (c.rxd() && rx_cnt < len)
-        {
-          // read & forget the read value
-          (void)read32(Mmio_regs::Fifo);
-          ++rx_cnt;
-          c.update(this);
-        }
-    }
-
-  return L4_EOK;
-}
-
-long
-Ctrl_bcm2835::read(Spi_server::Xfer_cfg const &cfg, l4_uint8_t *buf,
-                   unsigned len)
-{
-  Control c(this);
-
-  unsigned tx_cnt = 0;
-  unsigned rx_cnt = 0;
-
-  while (tx_cnt < len || rx_cnt < len)
-    {
-      c.update(this);
-      while (c.txd() && tx_cnt < len)
-        {
-          write32(Mmio_regs::Fifo, (l4_uint32_t) cfg.read_tx_val);
-          ++tx_cnt;
-          c.update(this);
-        }
-      while (c.rxd() && rx_cnt < len)
-        {
-          buf[rx_cnt] = (l4_uint8_t) read32(Mmio_regs::Fifo);
+          if (rx_buf)
+            rx_buf[rx_cnt] = (l4_uint8_t) read32(Mmio_regs::Fifo);
+          else
+            (void)read32(Mmio_regs::Fifo);
           ++rx_cnt;
           c.update(this);
         }

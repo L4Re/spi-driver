@@ -108,9 +108,9 @@ Spi_device::op_read(Spi_device_ops::Rights, unsigned char len,
                     L4::Ipc::Array_ref<l4_uint8_t> &buf)
 {
   std::vector<l4_uint8_t> buffer(len);
-  _ctrl->start_transfer(_cfg);
-  long err = _ctrl->read(_cfg, &buffer.front(), len);
-  _ctrl->finish_transfer();
+  _ctrl->start_transfer(_cfg, true);
+  long err = _ctrl->transfer(_cfg, nullptr, &buffer.front(), len);
+  _ctrl->finish_transfer(_cfg, true);
 
   if (err < 0)
     return err;
@@ -125,9 +125,9 @@ Spi_device::op_write(Spi_device_ops::Rights,
 {
   std::vector<l4_uint8_t> buffer(buf.data, buf.data + buf.length);
 
-  _ctrl->start_transfer(_cfg);
-  long err = _ctrl->write(_cfg, &buffer.front(), buf.length);
-  _ctrl->finish_transfer();
+  _ctrl->start_transfer(_cfg, true);
+  long err = _ctrl->transfer(_cfg, &buffer.front(), nullptr, buf.length);
+  _ctrl->finish_transfer(_cfg, true);
   return err;
 }
 
@@ -139,9 +139,9 @@ Spi_device::op_transfer(Spi_device_ops::Rights,
   unsigned char len = wbuf.length;
   std::vector<l4_uint8_t> wbuffer(wbuf.data, wbuf.data + wbuf.length);
   std::vector<l4_uint8_t> rbuffer(len);
-  _ctrl->start_transfer(_cfg);
+  _ctrl->start_transfer(_cfg, true);
   long err = _ctrl->transfer(_cfg, &wbuffer.front(), &rbuffer.front(), len);
-  _ctrl->finish_transfer();
+  _ctrl->finish_transfer(_cfg, true);
 
   if (err < 0)
     return err;
@@ -158,17 +158,17 @@ Spi_device::op_write_read(Spi_device_ops::Rights,
 {
   std::vector<l4_uint8_t> wbuffer(wbuf.data, wbuf.data + wbuf.length);
 
-  _ctrl->start_transfer(_cfg);
-  long err = _ctrl->write(_cfg, &wbuffer.front(), wbuf.length);
+  _ctrl->start_transfer(_cfg, true);
+  long err = _ctrl->transfer(_cfg, &wbuffer.front(), nullptr, wbuf.length);
   if (err < 0)
     {
-      _ctrl->finish_transfer();
+      _ctrl->finish_transfer(_cfg, true);
       return err;
     }
 
   std::vector<l4_uint8_t> rbuffer(len);
-  err = _ctrl->read(_cfg, &rbuffer.front(), len);
-  _ctrl->finish_transfer();
+  err = _ctrl->transfer(_cfg, nullptr, &rbuffer.front(), len);
+  _ctrl->finish_transfer(_cfg, true);
 
   if (err < 0)
     return err;
@@ -198,49 +198,11 @@ public:
 
     Xfer_cfg cfg;
     transfer_head2xfer_cfg(head, cfg);
-    _ctrl->start_transfer(cfg);
+    _ctrl->start_transfer(cfg, false);
     long err = _ctrl->transfer(cfg, tx_buf, rx_buf, len);
-    _ctrl->finish_transfer();
+    _ctrl->finish_transfer(cfg, false);
     if (err)
       warn().printf("spi-virtio-req::transfer: %li\n", err);
-
-    return (err == L4_EOK) ? L4virtio::Svr::Spi_trans_ok
-                           : L4virtio::Svr::Spi_trans_err;
-  }
-
-  L4virtio::Svr::Spi_transfer_result
-  handle_write(L4virtio::Svr::Spi_transfer_head const &head,
-               l4_uint8_t const *tx_buf, unsigned len)
-  {
-    if (head.chip_select_id != _cs)
-      return L4virtio::Svr::Spi_param_err;
-
-    Xfer_cfg cfg;
-    transfer_head2xfer_cfg(head, cfg);
-    _ctrl->start_transfer(cfg);
-    long err = _ctrl->write(cfg, tx_buf, len);
-    _ctrl->finish_transfer();
-    if (err)
-      warn().printf("spi-virtio-req::write: %li\n", err);
-
-    return (err == L4_EOK) ? L4virtio::Svr::Spi_trans_ok
-                           : L4virtio::Svr::Spi_trans_err;
-  }
-
-  L4virtio::Svr::Spi_transfer_result
-  handle_read(L4virtio::Svr::Spi_transfer_head const &head, l4_uint8_t *rx_buf,
-              unsigned len)
-  {
-    if (head.chip_select_id != _cs)
-      return L4virtio::Svr::Spi_param_err;
-
-    Xfer_cfg cfg;
-    transfer_head2xfer_cfg(head, cfg);
-    _ctrl->start_transfer(cfg);
-    long err = _ctrl->read(cfg, rx_buf, len);
-    _ctrl->finish_transfer();
-    if (err)
-      warn().printf("spi-virtio-req::read: %li\n", err);
 
     return (err == L4_EOK) ? L4virtio::Svr::Spi_trans_ok
                            : L4virtio::Svr::Spi_trans_err;
@@ -291,10 +253,11 @@ private:
 
     cfg.cs = head.chip_select_id;
     cfg.cspol = head.mode & Mode_cspol;
-    cfg.clk = head.freq; // XXX
+    cfg.clk = 512; //head.freq; // XXX
     cfg.cpol = head.mode & Mode_cpol;
     cfg.cpha = head.mode & Mode_cpha;
     cfg.read_tx_val = _read_tx_val;
+    cfg.last = head.reserved[0]; // XXX: non-standard!!!
   }
 
   static Dbg warn() { return Dbg(Dbg::Warn, "ReqHdlr"); }
@@ -345,7 +308,7 @@ private:
   static Dbg trace() { return Dbg(Dbg::Trace, "Fab"); }
 
   bool device_chipselect_free(unsigned cs) const;
-  bool device_chipselect_exists(unsigned cs);
+  bool device_chipselect_exists(unsigned cs) const;
 
   Controller_if *_ctrl;
   L4Re::Util::Object_registry *_registry;
@@ -370,10 +333,9 @@ Spi_factory::device_chipselect_free(unsigned cs) const
 }
 
 bool
-Spi_factory::device_chipselect_exists(unsigned cs)
+Spi_factory::device_chipselect_exists(unsigned cs) const
 {
-  // XXX: compare against controller limit
-  return true;
+  return cs < _ctrl->cs_num();
 }
 
 long
@@ -461,11 +423,11 @@ Spi_factory::op_create(L4::Factory::Rights, L4::Ipc::Cap<void> &res,
         }
     }
 
-  if (!device_chipselect_free(dev_cs))
-    return -L4_EEXIST;
-
   if (!device_chipselect_exists(dev_cs))
     return -L4_ENODEV;
+
+  if (!device_chipselect_free(dev_cs))
+    return -L4_EEXIST;
 
   L4::Cap<void> device_ep;
 

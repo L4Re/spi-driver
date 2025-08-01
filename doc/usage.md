@@ -43,7 +43,7 @@ SPI controller driver provides the following command line options:
 
  The SPI controller driver offers a factory interface to create one of the
  frontends for a specific SPI device, identified via the SPI device chip select
- ID in decimal number format (`"cs=NN"`).
+ ID in decimal number format (`"cs=N"`).
  The capability to the factory interface channel must be named `dev_factory`
  in the capability table of the SPI controller driver.
 
@@ -51,7 +51,7 @@ SPI controller driver provides the following command line options:
  call will return `-L4_EEXIST`.
 
 
-## Usage example for BMA280 sensor device
+## Usage example for BMP280 sensor device
 
 ```lua
    local spi_vbus = ld:new_channel()
@@ -71,7 +71,7 @@ SPI controller driver provides the following command line options:
      }, "rom/spi-driver")
 
     -- 0: create a type 0 frontend: virtio-spi-device
-    -- 1: SPI chip select ID of the BMA280 sensor device connected to CE_1
+    -- 1: SPI chip select ID of the BMP280 sensor device connected to CE_1
    local spi_dev = spi_drv_fab:create(0, "cs=1")
 
    -- The spi_dev capability can be passed as named cap to a virtio-proxy
@@ -86,6 +86,32 @@ SPI controller driver provides the following command line options:
 
 ## device tree snippet for an virtio-spi-device to use with uvmm
 
-This snippet can be used in a uvmm device tree.
+This snippet can be used in a uvmm device tree. The `virtio_spi` device node
+contains an `spi` node, describing the bus with the `bmp280@0` node as the only
+device on this bus.
+The `0` value is the chip select ID of the BMP280 sensor device and `spi_bmp`
+is the name of the capability to the spi-driver.
 
-TBD
+```dts
+        virtio_spi@5000 {
+            compatible = "virtio,mmio";
+            reg = <0x5000 0x200>;
+            interrupt-parent = <&gic>;
+            interrupts = <0 124 4>;
+            l4vmm,vdev = "proxy";
+            l4vmm,virtiocap = "spi_bmp";
+            status = "okay";
+
+            spi {
+              compatible = "virtio,device2d";
+              #size-cells = <1>;
+              #address-cells = <0>;
+
+              bmp280@0 {
+                compatible = "bosch,bmp280";
+                reg = <0>; /* chip select */
+              };
+            };
+
+        };
+```
