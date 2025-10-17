@@ -196,8 +196,7 @@ public:
     if (head.chip_select_id != _cs)
       return L4virtio::Svr::Spi_param_err;
 
-    Xfer_cfg cfg;
-    transfer_head2xfer_cfg(head, cfg);
+    Xfer_cfg cfg = transfer_head2xfer_cfg(head);
     _ctrl->start_transfer(cfg, false);
     long err = _ctrl->transfer(cfg, tx_buf, rx_buf, len);
     _ctrl->finish_transfer(cfg, false);
@@ -241,8 +240,7 @@ public:
   }
 
 private:
-  void transfer_head2xfer_cfg(L4virtio::Svr::Spi_transfer_head const &head,
-                              Xfer_cfg &cfg)
+  Xfer_cfg transfer_head2xfer_cfg(L4virtio::Svr::Spi_transfer_head const &head)
   {
     enum
     {
@@ -251,6 +249,7 @@ private:
       Mode_cspol = 4,
     };
 
+    Xfer_cfg cfg;
     cfg.cs = head.chip_select_id;
     cfg.cspol = head.mode & Mode_cspol;
     cfg.clk = 512; //head.freq; // XXX
@@ -258,6 +257,7 @@ private:
     cfg.cpha = head.mode & Mode_cpha;
     cfg.read_tx_val = _read_tx_val;
     cfg.last = head.reserved[0]; // XXX: non-standard!!!
+    return cfg;
   }
 
   static Dbg warn() { return Dbg(Dbg::Warn, "ReqHdlr"); }
