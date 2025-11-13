@@ -50,6 +50,59 @@ SPI controller driver provides the following command line options:
  Each SPI device chip select ID can only be used once, each subsequent create
  call will return `-L4_EEXIST`.
 
+ The create call accepts the following parameters:
+
+* `"cs=<N>"`
+
+  Use SPI device chip select N.
+
+  Integer value.
+
+* `"cspol=0|1"`
+
+  The polarity of the SPI device chip select. 0 denotes CS active low.
+  1 denotes CS active high.
+
+  Integer boolean value.
+
+* `"clk=<VAL>"`
+
+  Clock divider value to be used for SPI transfers determinig the maximum SPI
+  clock rate. Only relevant for the type 1 spi-device clients as the type 0
+  virtio-spi-device clients set the clock value for each Virtio SPI transfer
+  individually.
+
+  For example, on Rpi4, which uses the BCM2835 controller, VAL  is defined
+  as follows:
+
+  - 0: the core clock frequency is divided by 65536
+  - other: the core clock frequency is divided by VAL, which must be a
+           power of 2. Odd values are rounded down.
+
+  Integer value.
+
+* `"cpol=0|1"`
+
+  The polarity of the SPI device clock. 0 denotes the rest state of the clock
+  is low. 1 denotes the rest state of the clock is high.
+
+  Integer boolean value.
+
+* `"cpha=0|1"`
+
+  The phase of the SPI device clock. 0 denotes the first clock transition
+  happens in the middle of data bit. 1 denotes the first clock transition
+  happens at the beginning of data bit.
+
+  Integer boolean value.
+
+* `"read_tx_val=<BYTE>"`
+
+  This parameter configures the BYTE value to be written to the SPI device while
+  performing a half-duplex read operation. Note that some SPI devices require
+  specific values for this.
+
+  Integer value.
 
 ## Usage example for BMP280 sensor device
 
