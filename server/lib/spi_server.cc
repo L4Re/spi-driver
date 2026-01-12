@@ -9,6 +9,7 @@
 #include <l4/sys/factory>
 #include <l4/sys/cxx/ipc_types>
 #include <l4/sys/cxx/ipc_epiface>
+#include <l4/cxx/minmax>
 #include <l4/re/util/object_registry>
 #include <l4/re/util/br_manager>
 #include <l4/l4virtio/server/virtio-spi-device>
@@ -99,8 +100,19 @@ public:
   bool match(l4_uint8_t cs) const { return cs == _cfg.cs; }
 
 private:
+  static unsigned constexpr Utcb_mr_bytes =
+    L4_UTCB_GENERIC_DATA_SIZE * sizeof(l4_umword_t);
+
+  unsigned store_input_buffer(l4_uint8_t const *buf, unsigned len)
+  {
+    unsigned cpy_len = cxx::min(Utcb_mr_bytes, len);
+    memcpy(_input_buffer, buf, cpy_len);
+    return cpy_len;
+  }
+
   Controller_if *_ctrl;
   Xfer_cfg _cfg;
+  l4_uint8_t _input_buffer[Utcb_mr_bytes];
 };
 
 long
@@ -123,10 +135,10 @@ long
 Spi_device::op_write(Spi_device_ops::Rights,
                      L4::Ipc::Array_ref<l4_uint8_t const> buf)
 {
-  std::vector<l4_uint8_t> buffer(buf.data, buf.data + buf.length);
+  unsigned char len = store_input_buffer(buf.data, buf.length);
 
   _ctrl->start_transfer(_cfg, true);
-  long err = _ctrl->transfer(_cfg, &buffer.front(), nullptr, buf.length);
+  long err = _ctrl->transfer(_cfg, _input_buffer, nullptr, len);
   _ctrl->finish_transfer(_cfg, true);
   return err;
 }
@@ -136,11 +148,10 @@ Spi_device::op_transfer(Spi_device_ops::Rights,
                           L4::Ipc::Array_ref<l4_uint8_t const> wbuf,
                           L4::Ipc::Array_ref<l4_uint8_t> &rbuf)
 {
-  unsigned char len = wbuf.length;
-  std::vector<l4_uint8_t> wbuffer(wbuf.data, wbuf.data + wbuf.length);
+  unsigned char len = store_input_buffer(wbuf.data, wbuf.length);
   std::vector<l4_uint8_t> rbuffer(len);
   _ctrl->start_transfer(_cfg, true);
-  long err = _ctrl->transfer(_cfg, &wbuffer.front(), &rbuffer.front(), len);
+  long err = _ctrl->transfer(_cfg, _input_buffer, &rbuffer.front(), len);
   _ctrl->finish_transfer(_cfg, true);
 
   if (err < 0)
@@ -156,10 +167,10 @@ Spi_device::op_write_read(Spi_device_ops::Rights,
                           unsigned char len,
                           L4::Ipc::Array_ref<l4_uint8_t> &rbuf)
 {
-  std::vector<l4_uint8_t> wbuffer(wbuf.data, wbuf.data + wbuf.length);
+  unsigned char wlen = store_input_buffer(wbuf.data, wbuf.length);
 
   _ctrl->start_transfer(_cfg, true);
-  long err = _ctrl->transfer(_cfg, &wbuffer.front(), nullptr, wbuf.length);
+  long err = _ctrl->transfer(_cfg, _input_buffer, nullptr, wlen);
   if (err < 0)
     {
       _ctrl->finish_transfer(_cfg, true);
