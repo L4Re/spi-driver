@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 Kernkonzept GmbH.
+ * Copyright (C) 2024-2025 Kernkonzept GmbH.
  * Author(s): Philipp Eppelt philipp.eppelt@kernkonzept.com
  *            Jakub Jermar <jakub.jermar@kernkonzept.com>
  *            Martin Küttler <martin.kuettler@kernkonzept.com>
