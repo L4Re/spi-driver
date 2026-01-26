@@ -65,21 +65,13 @@ SPI controller driver provides the following command line options:
 
   Integer boolean value.
 
-* `"clk=<VAL>"`
+* `"clk=<max device frequency>"`
 
-  Clock divider value to be used for SPI transfers determinig the maximum SPI
-  clock rate. Only relevant for the type 1 spi-device clients as the type 0
-  virtio-spi-device clients set the clock value for each Virtio SPI transfer
-  individually.
+  Maximum frequency the given device supports. Only relevant for the type 1
+  spi-device clients as the type 0 virtio-spi-device clients set the clock
+  value for each Virtio SPI transfer individually.
 
-  For example, on Rpi4, which uses the BCM2835 controller, VAL  is defined
-  as follows:
-
-  - 0: the core clock frequency is divided by 65536
-  - other: the core clock frequency is divided by VAL, which must be a
-           power of 2. Odd values are rounded down.
-
-  Integer value.
+  Hexadecimal Integer value.
 
 * `"cpol=0|1"`
 

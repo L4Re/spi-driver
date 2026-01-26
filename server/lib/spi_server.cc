@@ -264,7 +264,7 @@ private:
     Xfer_cfg cfg;
     cfg.cs = head.chip_select_id;
     cfg.cspol = head.mode & Mode_cspol;
-    cfg.clk = 512; //head.freq; // XXX
+    cfg.clk = head.freq;
     cfg.cpol = head.mode & Mode_cpol;
     cfg.cpha = head.mode & Mode_cpha;
     cfg.read_tx_val = _read_tx_val;

@@ -116,6 +116,30 @@ private:
     _regs.write<l4_uint32_t>(val, reg);
   }
 
+  // compute even clock divider value from input and device frequency
+  l4_uint16_t compute_divider(l4_uint32_t const dev_freq)
+  {
+    enum
+    {
+      Raspi_4b_input_clock_freq = 500'000'000, // frequency of SPI input clock
+      Cdiv_max = (1U << 16) - 2, // highest even 16-bit value
+    };
+
+    if (dev_freq == 0)
+      return 0; // maximum divider means slowest frequency.
+
+    l4_uint16_t cdiv = 2; // only even divisors accepted
+
+    while (Raspi_4b_input_clock_freq / cdiv > dev_freq)
+      {
+        cdiv += 2;
+        if (cdiv == Cdiv_max)
+          return 0;
+      }
+
+    return cdiv;
+  }
+
   void alloc_ctrl_resources(L4::Cap<L4vbus::Vbus> vbus, L4::Cap<L4::Icu> icu,
                             L4vbus::Device &dev, l4vbus_device_t &devinfo,
                             l4_addr_t &base, l4_addr_t &end,
@@ -148,7 +172,7 @@ void Ctrl_bcm2835::start_transfer(Spi_server::Xfer_cfg const &cfg)
 {
   Clock clk(this);
 
-  clk.cdiv() = cfg.clk;
+  clk.cdiv() = compute_divider(cfg.clk);
   write32(Mmio_regs::Clk, clk.raw);
 
   Control c(this);
