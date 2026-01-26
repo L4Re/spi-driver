@@ -88,7 +88,7 @@ public:
   bool cpol_hi_supported() override
   { return true; }
 
-  void start_transfer(Spi_server::Xfer_cfg const &cfg, bool force) override;
+  void start_transfer(Spi_server::Xfer_cfg const &cfg) override;
   void finish_transfer(Spi_server::Xfer_cfg const &cfg, bool force) override;
 
   long transfer(Spi_server::Xfer_cfg const &cfg, l4_uint8_t const *tx_buf,
@@ -125,8 +125,6 @@ private:
   L4drivers::Mmio_register_block<32> _regs;
   l4_addr_t _end;
   L4::Cap<L4::Irq> _irq;
-
-  bool _msg_in_progress = false;
 };
 
 void Ctrl_bcm2835::setup(L4Re::Util::Object_registry *registry)
@@ -146,11 +144,8 @@ void Ctrl_bcm2835::setup(L4Re::Util::Object_registry *registry)
   L4Re::chkipc(_irq->unmask(), "Unmask IRQ\n");
 }
 
-void Ctrl_bcm2835::start_transfer(Spi_server::Xfer_cfg const &cfg, bool force)
+void Ctrl_bcm2835::start_transfer(Spi_server::Xfer_cfg const &cfg)
 {
-  if (!force && _msg_in_progress)
-    return;
-
   Clock clk(this);
 
   clk.cdiv() = cfg.clk;
@@ -193,7 +188,6 @@ void Ctrl_bcm2835::finish_transfer(Spi_server::Xfer_cfg const &cfg, bool force)
 
   if (cfg.last || force)
     {
-      _msg_in_progress = false;
       c.ta() = 0;
       write32(Mmio_regs::Cs, c.raw);
     }

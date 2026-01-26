@@ -120,7 +120,7 @@ Spi_device::op_read(Spi_device_ops::Rights, unsigned char len,
                     L4::Ipc::Array_ref<l4_uint8_t> &buf)
 {
   std::vector<l4_uint8_t> buffer(len);
-  _ctrl->start_transfer(_cfg, true);
+  _ctrl->start_transfer(_cfg);
   long err = _ctrl->transfer(_cfg, nullptr, &buffer.front(), len);
   _ctrl->finish_transfer(_cfg, true);
 
@@ -137,7 +137,7 @@ Spi_device::op_write(Spi_device_ops::Rights,
 {
   unsigned char len = store_input_buffer(buf.data, buf.length);
 
-  _ctrl->start_transfer(_cfg, true);
+  _ctrl->start_transfer(_cfg);
   long err = _ctrl->transfer(_cfg, _input_buffer, nullptr, len);
   _ctrl->finish_transfer(_cfg, true);
   return err;
@@ -150,7 +150,7 @@ Spi_device::op_transfer(Spi_device_ops::Rights,
 {
   unsigned char len = store_input_buffer(wbuf.data, wbuf.length);
   std::vector<l4_uint8_t> rbuffer(len);
-  _ctrl->start_transfer(_cfg, true);
+  _ctrl->start_transfer(_cfg);
   long err = _ctrl->transfer(_cfg, _input_buffer, &rbuffer.front(), len);
   _ctrl->finish_transfer(_cfg, true);
 
@@ -169,7 +169,7 @@ Spi_device::op_write_read(Spi_device_ops::Rights,
 {
   unsigned char wlen = store_input_buffer(wbuf.data, wbuf.length);
 
-  _ctrl->start_transfer(_cfg, true);
+  _ctrl->start_transfer(_cfg);
   long err = _ctrl->transfer(_cfg, _input_buffer, nullptr, wlen);
   if (err < 0)
     {
@@ -208,7 +208,7 @@ public:
       return L4virtio::Svr::Spi_param_err;
 
     Xfer_cfg cfg = transfer_head2xfer_cfg(head);
-    _ctrl->start_transfer(cfg, false);
+    _ctrl->start_transfer(cfg);
     long err = _ctrl->transfer(cfg, tx_buf, rx_buf, len);
     _ctrl->finish_transfer(cfg, false);
     if (err)

@@ -40,7 +40,7 @@ struct Controller_if
   virtual bool cpol_lo_supported() = 0;
   virtual bool cpol_hi_supported() = 0;
 
-  virtual void start_transfer(Xfer_cfg const &cfg, bool force) = 0;
+  virtual void start_transfer(Xfer_cfg const &cfg) = 0;
   virtual void finish_transfer(Xfer_cfg const &cfg, bool force) = 0;
 
   virtual long transfer(Xfer_cfg const &cfg, l4_uint8_t const *tx_buf,
