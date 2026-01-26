@@ -58,44 +58,6 @@ SPI controller driver provides the following command line options:
 
   Integer value.
 
-* `"cspol=0|1"`
-
-  The polarity of the SPI device chip select. 0 denotes CS active low.
-  1 denotes CS active high.
-
-  Integer boolean value.
-
-* `"clk=<max device frequency>"`
-
-  Maximum frequency the given device supports. Only relevant for the type 1
-  spi-device clients as the type 0 virtio-spi-device clients set the clock
-  value for each Virtio SPI transfer individually.
-
-  Hexadecimal Integer value.
-
-* `"cpol=0|1"`
-
-  The polarity of the SPI device clock. 0 denotes the rest state of the clock
-  is low. 1 denotes the rest state of the clock is high.
-
-  Integer boolean value.
-
-* `"cpha=0|1"`
-
-  The phase of the SPI device clock. 0 denotes the first clock transition
-  happens in the middle of data bit. 1 denotes the first clock transition
-  happens at the beginning of data bit.
-
-  Integer boolean value.
-
-* `"read_tx_val=<BYTE>"`
-
-  This parameter configures the BYTE value to be written to the SPI device while
-  performing a half-duplex read operation. Note that some SPI devices require
-  specific values for this.
-
-  Integer value.
-
 ## Usage example for BMP280 sensor device
 
 ```lua
@@ -163,3 +125,54 @@ is the name of the capability to the spi-driver.
 
         };
 ```
+
+## Device driver interface
+
+A device driver must deliver the device configuration on each SPI transfer.
+This is necessary, because the operating parameters (e.g. frequency) of a
+device might change during run-time.
+
+The `struct Xcfg` informs the SPI controller driver about the necessary
+parameter settings. Further explanation for each parameter is given below.
+
+```c
+  struct Xcfg
+  {
+    bool cspol;   ///< Chip select polarity
+    unsigned clk; ///< Clock frequency in Hz
+    bool cpol;    ///< Clock polarity
+    bool cpha;    ///< Clock phase
+
+    /// TX byte sent to the device during read() as some devices reportedly
+    /// require this to be a specific value.
+    l4_uint8_t read_tx_val;
+  };
+```
+
+* `"cspol=0|1"`
+
+  The polarity of the SPI device chip select. 0 denotes CS active low.
+  1 denotes CS active high.
+
+* `"clk=<max device frequency>"`
+
+  Maximum frequency the given device supports. Only relevant for the type 1
+  spi-device clients as the type 0 virtio-spi-device clients set the clock
+  value for each Virtio SPI transfer individually.
+
+* `"cpol=0|1"`
+
+  The polarity of the SPI device clock. 0 denotes the rest state of the clock
+  is low. 1 denotes the rest state of the clock is high.
+
+* `"cpha=0|1"`
+
+  The phase of the SPI device clock. 0 denotes the first clock transition
+  happens in the middle of data bit. 1 denotes the first clock transition
+  happens at the beginning of data bit.
+
+* `"read_tx_val=<BYTE>"`
+
+  This parameter configures the BYTE value to be written to the SPI device while
+  performing a half-duplex read operation. Note that some SPI devices require
+  specific values for this.

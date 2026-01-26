@@ -11,43 +11,44 @@
 
 static inline
 long
-spi_transfer(L4::Cap<Spi_device_ops> dev, unsigned short len,
-             l4_uint8_t const *tx_buf, l4_uint8_t *rx_buf)
+spi_transfer(L4::Cap<Spi_device_ops> dev, Spi_device_ops::Xcfg const cfg,
+             unsigned short len, l4_uint8_t const *tx_buf, l4_uint8_t *rx_buf)
 {
   L4::Ipc::Array<l4_uint8_t const> wbuf{len, tx_buf};
   L4::Ipc::Array<l4_uint8_t> rbuf{len, rx_buf};
 
-  return dev->transfer(wbuf, rbuf);
+  return dev->transfer(cfg, wbuf, rbuf);
 }
 
 static inline
 long
-spi_write_read(L4::Cap<Spi_device_ops> dev, unsigned short wlen,
-               l4_uint8_t const *tx_buf, unsigned short rlen,
-               l4_uint8_t *rx_buf)
+spi_write_read(L4::Cap<Spi_device_ops> dev, Spi_device_ops::Xcfg const cfg,
+               unsigned short wlen, l4_uint8_t const *tx_buf,
+               unsigned short rlen, l4_uint8_t *rx_buf)
 {
   L4::Ipc::Array<l4_uint8_t const> wbuf{wlen, tx_buf};
   L4::Ipc::Array<l4_uint8_t> rbuf{rlen, rx_buf};
 
-  return dev->write_read(wbuf, rlen, rbuf);
+  return dev->write_read(cfg, wbuf, rlen, rbuf);
 }
 
 static inline
 long
-spi_write(L4::Cap<Spi_device_ops> dev, unsigned short len,
-          l4_uint8_t const *tx_buf)
+spi_write(L4::Cap<Spi_device_ops> dev, Spi_device_ops::Xcfg const cfg,
+          unsigned short len, l4_uint8_t const *tx_buf)
 {
   L4::Ipc::Array<l4_uint8_t const> wbuf{len, tx_buf};
 
-  return dev->write(wbuf);
+  return dev->write(cfg, wbuf);
 }
 
 static inline
 long
-spi_read(L4::Cap<Spi_device_ops> dev, unsigned short len, l4_uint8_t *rx_buf)
+spi_read(L4::Cap<Spi_device_ops> dev, Spi_device_ops::Xcfg const cfg,
+         unsigned short len, l4_uint8_t *rx_buf)
 {
   L4::Ipc::Array<l4_uint8_t> rbuf{len, rx_buf};
 
-  return dev->read(len, rbuf);
+  return dev->read(cfg, len, rbuf);
 }
 
