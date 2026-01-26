@@ -267,7 +267,7 @@ private:
     cfg.cpol = head.mode & Mode_cpol;
     cfg.cpha = head.mode & Mode_cpha;
     cfg.read_tx_val = _read_tx_val;
-    cfg.last = head.reserved[0]; // XXX: non-standard!!!
+    cfg.last = head.last_request; // XXX: non-standard!!!
     return cfg;
   }
 
