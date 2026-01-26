@@ -23,9 +23,6 @@ struct Xfer_cfg
   /// TX byte sent to the device during read() as some devices reportedly
   /// require this to be a specific value.
   l4_uint8_t read_tx_val;
-
-  /// True if this is the last transfer in a message.
-  bool last = false;
 };
 
 /**
@@ -41,7 +38,7 @@ struct Controller_if
   virtual bool cpol_hi_supported() = 0;
 
   virtual void start_transfer(Xfer_cfg const &cfg) = 0;
-  virtual void finish_transfer(Xfer_cfg const &cfg, bool force) = 0;
+  virtual void finish_transfer(Xfer_cfg const &cfg, bool cs_off) = 0;
 
   virtual long transfer(Xfer_cfg const &cfg, l4_uint8_t const *tx_buf,
                         l4_uint8_t *rx_buf, unsigned len) = 0;

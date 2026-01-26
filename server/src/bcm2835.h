@@ -89,7 +89,7 @@ public:
   { return true; }
 
   void start_transfer(Spi_server::Xfer_cfg const &cfg) override;
-  void finish_transfer(Spi_server::Xfer_cfg const &cfg, bool force) override;
+  void finish_transfer(Spi_server::Xfer_cfg const &cfg, bool cs_off) override;
 
   long transfer(Spi_server::Xfer_cfg const &cfg, l4_uint8_t const *tx_buf,
                 l4_uint8_t *rx_buf, unsigned len) override;
@@ -179,14 +179,15 @@ void Ctrl_bcm2835::start_transfer(Spi_server::Xfer_cfg const &cfg)
   write32(Mmio_regs::Cs,  c.raw);
 }
 
-void Ctrl_bcm2835::finish_transfer(Spi_server::Xfer_cfg const &cfg, bool force)
+void
+Ctrl_bcm2835::finish_transfer(Spi_server::Xfer_cfg const & /*cfg*/, bool cs_off)
 {
   Control c(this);
 
   while (!c.done())
     c.update(this);
 
-  if (cfg.last || force)
+  if (cs_off)
     {
       c.ta() = 0;
       write32(Mmio_regs::Cs, c.raw);
