@@ -127,6 +127,8 @@ SPI controller driver provides the following command line options:
 ## Supported hardware SPI controllers
 
  - BCM2835, BCM2711
+ - i.MX8 ECSPI
+    - single CS line, only master-mode
 
 
 ## device tree snippet for an virtio-spi-device to use with uvmm
@@ -155,6 +157,7 @@ is the name of the capability to the spi-driver.
               bmp280@0 {
                 compatible = "bosch,bmp280";
                 reg = <0>; /* chip select */
+                spi-max-frequency = <10000000>;
               };
             };
 

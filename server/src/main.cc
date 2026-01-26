@@ -20,9 +20,11 @@
 #include "debug.h"
 #include "controller.h"
 #include "bcm2835.h"
+#include "imx8-ecspi.h"
 
 // List of all supported controllers
 static Ctrl_bcm2835 __bcm2835;
+static Imx8::Ctrl_ecspi __ecspi;
 
 // Pointer to active controller
 static Ctrl_base *__ctrl;
