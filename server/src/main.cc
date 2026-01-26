@@ -23,8 +23,12 @@
 #include "imx8-ecspi.h"
 
 // List of all supported controllers
-static Ctrl_bcm2835 __bcm2835;
-static Imx8::Ctrl_ecspi __ecspi;
+#ifdef CONFIG_SPI_DRIVER_RPI4
+  static Ctrl_bcm2835 __bcm2835;
+#endif
+#ifdef CONFIG_SPI_DRIVER_IMX8
+  static Imx8::Ctrl_ecspi __ecspi;
+#endif
 
 // Pointer to active controller
 static Ctrl_base *__ctrl;
