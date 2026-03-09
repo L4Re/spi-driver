@@ -16,7 +16,6 @@ struct Spi_device_ops : L4::Kobject_t<Spi_device_ops, L4::Kobject, L4::PROTO_ANY
 {
   struct Xcfg
   {
-    bool cspol;   ///< Chip select polarity
     unsigned clk; ///< Clock frequency in Hz
     bool cpol;    ///< Clock polarity
     bool cpha;    ///< Clock phase

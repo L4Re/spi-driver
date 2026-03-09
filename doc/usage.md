@@ -58,6 +58,18 @@ SPI controller driver provides the following command line options:
 
   Integer value.
 
+* `"cspol=0|1"`
+
+  The polarity of the SPI device chip select. 0 denotes CS active low.
+  1 denotes CS active high.
+
+* `"read_tx_val=<BYTE>"` (type 0 only)
+
+  This parameter configures the BYTE value to be written to the SPI device while
+  performing a half-duplex read operation. Note that some SPI devices require
+  specific values for this. This is only relevant for the virtio-spi-device
+  (type 0).
+
 ## Usage example for BMP280 sensor device
 
 ```lua
@@ -79,7 +91,7 @@ SPI controller driver provides the following command line options:
 
     -- 0: create a type 0 frontend: virtio-spi-device
     -- 1: SPI chip select ID of the BMP280 sensor device connected to CE_1
-   local spi_dev = spi_drv_fab:create(0, "cs=1")
+   local spi_dev = spi_drv_fab:create(0, "cs=1", "cspol=0", "read_tx_val=0")
 
    -- The spi_dev capability can be passed as named cap to a virtio-proxy
    -- device in uvmm.
@@ -138,7 +150,6 @@ parameter settings. Further explanation for each parameter is given below.
 ```c
   struct Xcfg
   {
-    bool cspol;   ///< Chip select polarity
     unsigned clk; ///< Clock frequency in Hz
     bool cpol;    ///< Clock polarity
     bool cpha;    ///< Clock phase
@@ -148,11 +159,6 @@ parameter settings. Further explanation for each parameter is given below.
     l4_uint8_t read_tx_val;
   };
 ```
-
-* `"cspol=0|1"`
-
-  The polarity of the SPI device chip select. 0 denotes CS active low.
-  1 denotes CS active high.
 
 * `"clk=<max device frequency>"`
 

@@ -81,8 +81,8 @@ parse_uint_param(L4::Ipc::Varg const &param, char const *prefix,
 class Spi_device : public L4::Epiface_t<Spi_device, Spi_device_ops>
 {
 public:
-  Spi_device(l4_uint8_t cs, Controller_if *ctrl)
-  : _ctrl(ctrl), _cs(cs)
+  Spi_device(l4_uint8_t cs, bool cspol, Controller_if *ctrl)
+  : _ctrl(ctrl), _cspol(cspol), _cs(cs)
   {
     assert(_ctrl);
   }
@@ -117,6 +117,7 @@ private:
   }
 
   Controller_if *_ctrl;
+  bool _cspol;
   l4_uint8_t _cs;
   l4_uint8_t _input_buffer[Utcb_mr_bytes];
 };
@@ -128,7 +129,7 @@ Spi_device::op_read(Spi_device_ops::Rights,
                     L4::Ipc::Array_ref<l4_uint8_t> &buf)
 {
   std::vector<l4_uint8_t> buffer(len);
-  Xfer_cfg cfg = {_cs,       xcfg.cspol, xcfg.clk,
+  Xfer_cfg cfg = {_cs,       _cspol,     xcfg.clk,
                   xcfg.cpol, xcfg.cpha,  xcfg.read_tx_val};
 
   _ctrl->start_transfer(cfg);
@@ -148,7 +149,7 @@ Spi_device::op_write(Spi_device_ops::Rights,
                      L4::Ipc::Array_ref<l4_uint8_t const> buf)
 {
   unsigned char len = store_input_buffer(buf.data, buf.length);
-  Xfer_cfg cfg = {_cs,       xcfg.cspol, xcfg.clk,
+  Xfer_cfg cfg = {_cs,       _cspol,     xcfg.clk,
                   xcfg.cpol, xcfg.cpha,  xcfg.read_tx_val};
 
   _ctrl->start_transfer(cfg);
@@ -165,7 +166,7 @@ Spi_device::op_transfer(Spi_device_ops::Rights,
 {
   unsigned char len = store_input_buffer(wbuf.data, wbuf.length);
   std::vector<l4_uint8_t> rbuffer(len);
-  Xfer_cfg cfg = {_cs,       xcfg.cspol, xcfg.clk,
+  Xfer_cfg cfg = {_cs,       _cspol,     xcfg.clk,
                   xcfg.cpol, xcfg.cpha,  xcfg.read_tx_val};
   _ctrl->start_transfer(cfg);
   long err = _ctrl->transfer(cfg, _input_buffer, &rbuffer.front(), len);
@@ -186,7 +187,7 @@ Spi_device::op_write_read(Spi_device_ops::Rights,
                           L4::Ipc::Array_ref<l4_uint8_t> &rbuf)
 {
   unsigned char wlen = store_input_buffer(wbuf.data, wbuf.length);
-  Xfer_cfg cfg = {_cs,       xcfg.cspol, xcfg.clk,
+  Xfer_cfg cfg = {_cs,       _cspol,     xcfg.clk,
                   xcfg.cpol, xcfg.cpha,  xcfg.read_tx_val};
 
   _ctrl->start_transfer(cfg);
@@ -212,9 +213,9 @@ Spi_device::op_write_read(Spi_device_ops::Rights,
 class Spi_virtio_request_handler
 {
 public:
-  Spi_virtio_request_handler(Controller_if *ctrl, l4_uint8_t cs,
+  Spi_virtio_request_handler(Controller_if *ctrl, l4_uint8_t cs, bool cspol,
                              l4_uint8_t read_tx_val = 0)
-  : _ctrl(ctrl), _cs(cs), _read_tx_val(read_tx_val)
+  : _ctrl(ctrl), _cspol(cspol), _cs(cs), _read_tx_val(read_tx_val)
   {}
 
   ~Spi_virtio_request_handler() = default;
@@ -282,8 +283,9 @@ private:
     };
 
     Xfer_cfg cfg;
-    cfg.cs = head.chip_select_id;
-    cfg.cspol = head.mode & Mode_cspol;
+    cfg.cs = _cs;       // Use our value. Match to head.chip_select_id
+                        // already checked.
+    cfg.cspol = _cspol; // Use our value instead of head.mode & Mode_cspol.
     cfg.clk = head.freq;
     cfg.cpol = head.mode & Mode_cpol;
     cfg.cpha = head.mode & Mode_cpha;
@@ -297,6 +299,7 @@ private:
   static Dbg trace() { return Dbg(Dbg::Trace, "ReqHdlr"); }
 
   Controller_if *_ctrl;
+  bool _cspol;
   l4_uint8_t _cs;
   l4_uint8_t _read_tx_val;
 };
@@ -381,9 +384,6 @@ Spi_factory::op_create(L4::Factory::Rights, L4::Ipc::Cap<void> &res,
 
   unsigned dev_cs = 0;
   unsigned dev_cspol = 0;
-  unsigned dev_clk = 0;
-  unsigned dev_cpol = 0;
-  unsigned dev_cpha = 0;
   unsigned dev_read_tx_val = 0;
   for (L4::Ipc::Varg const &arg : args)
     {
@@ -412,30 +412,6 @@ Spi_factory::op_create(L4::Factory::Rights, L4::Ipc::Cap<void> &res,
                   err.printf(
                     "Requested device chip select polarity %u is out of range\n",
                     dev_cspol);
-                  return -L4_EINVAL;
-                }
-            }
-          if (parse_uint_param(arg, "clk=", &dev_clk))
-            {
-              // all values accepted
-            }
-          if (parse_uint_param(arg, "cpol=", &dev_cpol))
-            {
-              if (dev_cpol >= 2)
-                {
-                  err.printf(
-                    "Requested device clock polarity %u is out of range\n",
-                    dev_cpol);
-                  return -L4_EINVAL;
-                }
-            }
-          if (parse_uint_param(arg, "cpha=", &dev_cpha))
-            {
-              if (dev_cpha >= 2)
-                {
-                  err.printf(
-                    "Requested device clock phase %u is out of range\n",
-                    dev_cpha);
                   return -L4_EINVAL;
                 }
             }
@@ -469,7 +445,7 @@ Spi_factory::op_create(L4::Factory::Rights, L4::Ipc::Cap<void> &res,
     case Type_virtio:
       {
         std::unique_ptr<Spi_virtio_request_handler> rqh =
-          std::make_unique<Spi_virtio_request_handler>(_ctrl, dev_cs,
+          std::make_unique<Spi_virtio_request_handler>(_ctrl, dev_cs, dev_cspol,
                                                        dev_read_tx_val);
         if (!rqh)
           return -L4_EINVAL;
@@ -493,7 +469,7 @@ Spi_factory::op_create(L4::Factory::Rights, L4::Ipc::Cap<void> &res,
     case Type_rpc:
       {
         std::unique_ptr<Spi_device> spi_dev =
-          std::make_unique<Spi_device>((l4_uint8_t)dev_cs, _ctrl);
+          std::make_unique<Spi_device>((l4_uint8_t)dev_cs, dev_cspol, _ctrl);
 
         if (!spi_dev)
           return -L4_EINVAL;
